@@ -1,0 +1,121 @@
+# ==============================================================================
+# Almost Real AI Studio - Complete Multi-Service Orchestration with Nginx
+# Services: Nginx (port 80 landing), Next.js Frontend, FastAPI, PostgreSQL, Redis
+# ==============================================================================
+services:
+  # ----------------------------------------------------------------------------
+  # Nginx Gateway (Landing on http://localhost -> routes /api to backend, else frontend)
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: almost_real_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - almost_real_net
+
+  # ----------------------------------------------------------------------------
+  # PostgreSQL Database (Persistent Data & Analytics)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: almost_real_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-almost_real}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - almost_real_net
+
+  # ----------------------------------------------------------------------------
+  # Redis (Real-Time State, Progress Caching & Message Queue)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: almost_real_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - almost_real_net
+
+  # ----------------------------------------------------------------------------
+  # Backend API (FastAPI, APScheduler, Gemini Engine, Video Compiler)
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: almost_real_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-almost_real}
+      - REDIS_URL=redis://redis:6379/0
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - ./storage:/app/storage
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - almost_real_net
+
+  # ----------------------------------------------------------------------------
+  # Frontend UI (Next.js 16 + Tailwind CSS Studio & 9:16 Video Player)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: almost_real_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost
+    depends_on:
+      - backend
+    networks:
+      - almost_real_net
+
+volumes:
+  postgres_data:
+    name: almost_real_postgres_data
+  redis_data:
+    name: almost_real_redis_data
+
+networks:
+  almost_real_net:
+    name: almost_real_network
